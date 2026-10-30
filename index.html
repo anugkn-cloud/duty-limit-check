@@ -78,7 +78,8 @@
   .hint { margin: -6px 0 0; font-size: 0.85rem; color: var(--muted); }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .row label { font-weight: 500; }
-  .dur { display: flex; align-items: center; gap: 4px; }
+  .dur { display: flex; align-items: center; gap: 6px; }
+  #fields { display: grid; gap: 10px; }
   .dur input { width: 3.6em; }
   .dur span { color: var(--muted); font-size: 0.85rem; }
   input {
@@ -88,7 +89,8 @@
   input[type="date"], input[type="time"] { text-align: left; font-size: 1rem; min-width: 9.5em; }
   input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  input:focus { outline: none; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface); }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   button {
     font: 600 0.95rem var(--font-body); color: var(--accent); background: transparent; border: 1px solid var(--accent);
     border-radius: 8px; padding: 8px 14px; min-height: 44px; cursor: pointer;
