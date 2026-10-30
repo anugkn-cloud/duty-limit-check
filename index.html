@@ -160,14 +160,8 @@
   </section>
 
   <section>
-    <h2>Still to come</h2>
-    <p class="hint">Only time that hasn't happened yet. Time already worked is in "Time on duty so far" above.</p>
-    <div id="fields"></div>
-  </section>
-
-  <section>
     <h2>Sign-off</h2>
-    <p class="hint">Where you're flying to. Sign-off times above are shown in this time zone.</p>
+    <p class="hint">Where you're flying to. Sign-off times at the top are shown in this time zone.</p>
     <div class="row">
       <label for="arrSelect">Time zone</label>
       <select id="arrSelect"></select>
@@ -181,6 +175,12 @@
       <input type="time" id="landTime" step="60">
     </div>
     <div class="landing" id="landingOut">Enter a projected landing time to see your duty at landing.</div>
+  </section>
+
+  <section>
+    <h2>Still to come</h2>
+    <p class="hint">Only time that hasn't happened yet. Time already worked is in "Time on duty so far" above.</p>
+    <div id="fields"></div>
   </section>
 
   <section>
@@ -280,7 +280,8 @@
     return new Date(t);
   }
   function fmtOffset(mins) {
-    return "UTC" + (mins >= 0 ? "+" : "−") + fmt(mins);
+    const m = Math.abs(mins);
+    return "UTC" + (mins >= 0 ? "+" : "−") + (m % 60 ? fmt(m) : m / 60);
   }
   // Short name such as CDT or AEDT, or "" when the zone has none.
   const ABBR_LOCALES = ["en-US", "en-AU", "en-GB", "en-NZ", "en-IN", "en-ZA"];
@@ -439,7 +440,8 @@
   function fillZones(select) {
     const phone = document.createElement("optgroup");
     phone.label = "This phone";
-    phone.appendChild(new Option(PHONE_TZ.replace(/_/g, " ") + " — " + tagFor(PHONE_TZ), PHONE_TZ));
+    const phoneCity = (COMMON_ZONES.find(([, tz]) => tz === PHONE_TZ) || [PHONE_TZ.split("/").pop().replace(/_/g, " ")])[0];
+    phone.appendChild(new Option(phoneCity + " — " + tagFor(PHONE_TZ), PHONE_TZ));
     select.appendChild(phone);
     const common = document.createElement("optgroup");
     common.label = "Common";
