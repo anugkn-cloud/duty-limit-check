@@ -89,7 +89,7 @@
   input[type="date"], input[type="time"] { text-align: left; font-size: 1rem; min-width: 9.5em; }
   select {
     font: 500 1rem var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line);
-    border-radius: 8px; padding: 8px 10px; min-height: 44px; max-width: 100%; min-width: 0; flex: 1 1 12em;
+    border-radius: 8px; padding: 8px 10px; min-height: 44px; width: 10em; min-width: 0; flex: 1 1 10em; text-overflow: ellipsis;
   }
   select:focus { outline: none; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
   input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
@@ -104,6 +104,14 @@
   .clock-note { font-size: 0.85rem; color: var(--muted); }
   .manual { color: var(--warn); font-weight: 600; }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .landing { border-radius: 10px; padding: 12px; background: var(--bg); color: var(--muted); font-size: 0.9rem; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+  .landing.ok, .landing.warn, .landing.bad { color: var(--ink); border: 1px solid currentColor; }
+  .landing.ok { border-color: var(--ok); } .landing.warn { border-color: var(--warn); background: var(--warn-bg); } .landing.bad { border-color: var(--bad); background: var(--bad-bg); }
+  .landing span { display: block; font-size: 0.78rem; color: var(--muted); }
+  .landing b { font-weight: 600; font-size: 1.05rem; }
+  .landing .wide { grid-column: 1 / -1; }
+  .landing:not(.ok):not(.warn):not(.bad) { display: block; }
+  optgroup { font-weight: 600; }
   footer { font-size: 0.8rem; color: var(--muted); text-align: center; }
   @media (prefers-reduced-motion: no-preference) { .bar-sofar, .bar-tocome { transition: width 0.3s ease; } }
 </style>
@@ -158,6 +166,24 @@
   </section>
 
   <section>
+    <h2>Sign-off</h2>
+    <p class="hint">Where you're flying to. Sign-off times above are shown in this time zone.</p>
+    <div class="row">
+      <label for="arrSelect">Time zone</label>
+      <select id="arrSelect"></select>
+    </div>
+    <div class="row">
+      <label for="landDate">Projected landing date</label>
+      <input type="date" id="landDate">
+    </div>
+    <div class="row">
+      <label for="landTime">Projected landing time</label>
+      <input type="time" id="landTime" step="60">
+    </div>
+    <div class="landing" id="landingOut">Enter a projected landing time to see your duty at landing.</div>
+  </section>
+
+  <section>
     <h2>Duty limit</h2>
     <div class="row">
       <label for="limitH">Limit</label>
@@ -183,6 +209,30 @@
     ["gasgo", "Gas-and-go"],
     ["other", "Other duty"],
   ];
+  // Shown first in both time zone lists. Several cities share one zone.
+  const COMMON_ZONES = [
+    ["Dallas", "America/Chicago"],
+    ["Houston", "America/Chicago"],
+    ["Chicago", "America/Chicago"],
+    ["New York", "America/New_York"],
+    ["Los Angeles", "America/Los_Angeles"],
+    ["Honolulu", "Pacific/Honolulu"],
+    ["Vancouver", "America/Vancouver"],
+    ["London", "Europe/London"],
+    ["Paris", "Europe/Paris"],
+    ["Dubai", "Asia/Dubai"],
+    ["Doha", "Asia/Qatar"],
+    ["Johannesburg", "Africa/Johannesburg"],
+    ["Delhi", "Asia/Kolkata"],
+    ["Singapore", "Asia/Singapore"],
+    ["Hong Kong", "Asia/Hong_Kong"],
+    ["Tokyo", "Asia/Tokyo"],
+    ["Perth", "Australia/Perth"],
+    ["Brisbane", "Australia/Brisbane"],
+    ["Sydney", "Australia/Sydney"],
+    ["Melbourne", "Australia/Melbourne"],
+    ["Auckland", "Pacific/Auckland"],
+  ];
 
   // Pure calculation: all values in minutes.
   function calcDuty({ signOn, soFar, toCome, limit }) {
@@ -201,9 +251,11 @@
     const m = Math.abs(Math.round(mins));
     return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0");
   }
-  // Time zone helpers: sign-on is entered, and results shown, in the chosen zone.
+
+  // Time zone helpers. Sign-on is entered in the sign-on zone; sign-off and landing in the sign-off zone.
   const PHONE_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   let zone = PHONE_TZ;
+  let arrZone = PHONE_TZ;
 
   function zoneParts(d, tz) {
     const parts = {};
@@ -230,16 +282,39 @@
   function fmtOffset(mins) {
     return "UTC" + (mins >= 0 ? "+" : "−") + fmt(mins);
   }
-  function fmtClock(d) {
-    if (!d || isNaN(d)) return "–";
-    const time = d.toLocaleTimeString([], { timeZone: zone, hour: "2-digit", minute: "2-digit", hour12: false });
-    const day = d.toLocaleDateString([], { timeZone: zone, day: "numeric", month: "short" });
-    return time + " " + day;
+  // Short name such as CDT or AEDT, or "" when the zone has none.
+  const ABBR_LOCALES = ["en-US", "en-AU", "en-GB", "en-NZ", "en-IN", "en-ZA"];
+  function zoneAbbr(d, tz) {
+    for (const loc of ABBR_LOCALES) {
+      try {
+        const name = new Intl.DateTimeFormat(loc, { timeZone: tz, timeZoneName: "short" })
+          .formatToParts(d).find((x) => x.type === "timeZoneName").value;
+        if (name && !/^(GMT|UTC)/.test(name)) return name;
+      } catch (e) {}
+    }
+    return tz === "UTC" ? "UTC" : "";
   }
-  function setSignOn(d) {
-    const p = zoneParts(d, zone);
-    document.getElementById("signOnDate").value = p.year + "-" + p.month + "-" + p.day;
-    document.getElementById("signOnTime").value = String(+p.hour % 24).padStart(2, "0") + ":" + p.minute;
+  function zoneTag(d, tz) {
+    const abbr = zoneAbbr(d, tz);
+    const off = fmtOffset(zoneOffset(d, tz));
+    return abbr && abbr !== "UTC" ? abbr + " · " + off : off;
+  }
+  function fmtClock(d, tz) {
+    if (!d || isNaN(d)) return "–";
+    const time = d.toLocaleTimeString([], { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
+    const day = d.toLocaleDateString([], { timeZone: tz, day: "numeric", month: "short" });
+    return time + " " + day + " " + (zoneAbbr(d, tz) || fmtOffset(zoneOffset(d, tz)));
+  }
+  function setDateTime(dateId, timeId, d, tz) {
+    const p = zoneParts(d, tz);
+    document.getElementById(dateId).value = p.year + "-" + p.month + "-" + p.day;
+    document.getElementById(timeId).value = String(+p.hour % 24).padStart(2, "0") + ":" + p.minute;
+  }
+  function readDateTime(dateId, timeId, tz) {
+    const date = document.getElementById(dateId).value;
+    const time = document.getElementById(timeId).value;
+    const d = date && time ? zonedDate(date, time, tz) : null;
+    return d && !isNaN(d) ? d : null;
   }
   function readDur(hId, mId) {
     const h = parseInt(document.getElementById(hId).value, 10) || 0;
@@ -264,44 +339,49 @@
 
   let manualSoFar = false;
 
+  function load(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) {}
+  }
   function loadLimit() {
-    try {
-      const v = parseInt(localStorage.getItem("dutyLimitMinutes"), 10);
-      if (v > 0) return v;
-    } catch (e) {}
-    return DEFAULT_LIMIT;
-  }
-  function saveLimit(mins) {
-    try { localStorage.setItem("dutyLimitMinutes", String(mins)); } catch (e) {}
-  }
-  function loadZone() {
-    try {
-      const v = localStorage.getItem("dutyTimeZone");
-      if (v) { zoneOffset(new Date(), v); return v; }
-    } catch (e) {}
-    return PHONE_TZ;
-  }
-  function saveZone(tz) {
-    try { localStorage.setItem("dutyTimeZone", tz); } catch (e) {}
-  }
-
-  function signOnDate() {
-    const date = document.getElementById("signOnDate").value;
-    const time = document.getElementById("signOnTime").value;
-    const d = date && time ? zonedDate(date, time, zone) : null;
-    return d && !isNaN(d) ? d : null;
+    const v = parseInt(load("dutyLimitMinutes"), 10);
+    return v > 0 ? v : DEFAULT_LIMIT;
   }
 
   function syncClock() {
     if (manualSoFar) return;
-    const s = signOnDate();
+    const s = readDateTime("signOnDate", "signOnTime", zone);
     const mins = s ? Math.max(0, Math.floor((Date.now() - s.getTime()) / 60000)) : 0;
     writeDur("sofarH", "sofarM", mins);
   }
 
+  function renderLanding(signOn, limit) {
+    const out = document.getElementById("landingOut");
+    const land = readDateTime("landDate", "landTime", arrZone);
+    if (!land || !signOn) {
+      out.className = "landing";
+      out.textContent = "Enter a projected landing time to see your duty at landing.";
+      return;
+    }
+    const atLanding = Math.round((land.getTime() - signOn.getTime()) / 60000);
+    if (atLanding < 0) {
+      out.className = "landing bad";
+      out.textContent = "Landing is before sign-on. Check the dates and time zones.";
+      return;
+    }
+    const left = limit - atLanding;
+    out.className = "landing " + (left < 0 ? "bad" : left <= WARN_MINUTES ? "warn" : "ok");
+    out.innerHTML =
+      '<div><span>Duty at landing</span><b class="num">' + fmt(atLanding) + '</b></div>' +
+      '<div><span>' + (left < 0 ? "Over limit at landing" : "Left at landing") + '</span><b class="num">' + fmt(left) + '</b></div>' +
+      '<div class="wide"><span>Landing in sign-on time</span><b class="num">' + fmtClock(land, zone) + '</b></div>';
+  }
+
   function render() {
     syncClock();
-    const signOn = signOnDate();
+    const signOn = readDateTime("signOnDate", "signOnTime", zone);
     const soFar = readDur("sofarH", "sofarM");
     const toCome = CATEGORIES.reduce((sum, [key]) => sum + readDur(key + "H", key + "M"), 0);
     const limit = readDur("limitH", "limitM") || DEFAULT_LIMIT;
@@ -315,8 +395,8 @@
       fmt(r.remaining) + "<small>" + (r.remaining < 0 ? "over" : "left") + "</small>";
     document.getElementById("fTotal").textContent = fmt(r.total);
     document.getElementById("fLimit").textContent = fmt(limit);
-    document.getElementById("fEnd").textContent = fmtClock(r.projectedEnd);
-    document.getElementById("fLatest").textContent = fmtClock(r.latestEnd);
+    document.getElementById("fEnd").textContent = fmtClock(r.projectedEnd, arrZone);
+    document.getElementById("fLatest").textContent = fmtClock(r.latestEnd, arrZone);
 
     const scale = Math.max(limit, r.total) || 1;
     document.getElementById("barSoFar").style.width = Math.min(100, (soFar / scale) * 100) + "%";
@@ -326,19 +406,67 @@
       ? '<span class="manual">Entered by hand.</span> The clock is not updating it.'
       : "Counted from sign-on to now, using the phone's clock.";
     document.getElementById("useClock").hidden = !manualSoFar;
+
+    renderLanding(signOn, limit);
+    const now = new Date();
+    document.getElementById("tz").textContent = zone === arrZone
+      ? "Times in " + zoneTag(now, zone)
+      : "Sign-on " + (zoneAbbr(now, zone) || fmtOffset(zoneOffset(now, zone))) + " → sign-off " + (zoneAbbr(now, arrZone) || fmtOffset(zoneOffset(now, arrZone)));
   }
 
   function newDuty() {
     const now = new Date();
     now.setSeconds(0, 0);
-    setSignOn(now);
+    setDateTime("signOnDate", "signOnTime", now, zone);
     for (const [key] of CATEGORIES) {
       document.getElementById(key + "H").value = "";
       document.getElementById(key + "M").value = "";
     }
+    document.getElementById("landDate").value = "";
+    document.getElementById("landTime").value = "";
     manualSoFar = false;
     render();
   }
+
+  // Build a time zone list: common cities first, then every zone.
+  let allZones = [];
+  try { allZones = Intl.supportedValuesOf("timeZone"); } catch (e) {}
+  if (!allZones.includes("UTC")) allZones.unshift("UTC");
+  if (!allZones.includes(PHONE_TZ)) allZones.unshift(PHONE_TZ);
+  const now0 = new Date();
+  const tags = {};
+  const tagFor = (tz) => (tags[tz] = tags[tz] || zoneTag(now0, tz));
+  function fillZones(select) {
+    const phone = document.createElement("optgroup");
+    phone.label = "This phone";
+    phone.appendChild(new Option(PHONE_TZ.replace(/_/g, " ") + " — " + tagFor(PHONE_TZ), PHONE_TZ));
+    select.appendChild(phone);
+    const common = document.createElement("optgroup");
+    common.label = "Common";
+    for (const [city, tz] of COMMON_ZONES) common.appendChild(new Option(city + " — " + tagFor(tz), tz));
+    select.appendChild(common);
+    const all = document.createElement("optgroup");
+    all.label = "All time zones";
+    // Offsets only here: looking up names for every zone is slow on phones.
+    for (const tz of allZones) all.appendChild(new Option(tz.replace(/_/g, " ") + " — " + fmtOffset(zoneOffset(now0, tz)), tz));
+    select.appendChild(all);
+  }
+  function setupZone(selectId, storageKey, apply) {
+    const select = document.getElementById(selectId);
+    fillZones(select);
+    const saved = load(storageKey);
+    select.value = saved || PHONE_TZ;
+    if (!select.value) select.value = PHONE_TZ;
+    apply(select.value);
+    // Typed dates and times are kept and read in the new zone.
+    select.addEventListener("change", () => {
+      apply(select.value);
+      save(storageKey, select.value);
+      render();
+    });
+  }
+  setupZone("tzSelect", "dutyTimeZone", (tz) => { zone = tz; manualSoFar = false; });
+  setupZone("arrSelect", "dutyArrivalZone", (tz) => { arrZone = tz; });
 
   for (const id of ["signOnDate", "signOnTime"]) {
     document.getElementById(id).addEventListener("input", () => { manualSoFar = false; render(); });
@@ -346,46 +474,20 @@
   for (const id of ["sofarH", "sofarM"]) {
     document.getElementById(id).addEventListener("input", () => { manualSoFar = true; render(); });
   }
+  for (const id of ["landDate", "landTime"]) {
+    document.getElementById(id).addEventListener("input", render);
+  }
   document.getElementById("useClock").addEventListener("click", () => { manualSoFar = false; render(); });
   fieldsEl.addEventListener("input", render);
   for (const id of ["limitH", "limitM"]) {
-    document.getElementById(id).addEventListener("input", () => { saveLimit(readDur("limitH", "limitM")); render(); });
+    document.getElementById(id).addEventListener("input", () => { save("dutyLimitMinutes", String(readDur("limitH", "limitM"))); render(); });
   }
   document.getElementById("resetLimit").addEventListener("click", () => {
     writeDur("limitH", "limitM", DEFAULT_LIMIT);
-    saveLimit(DEFAULT_LIMIT);
+    save("dutyLimitMinutes", String(DEFAULT_LIMIT));
     render();
   });
   document.getElementById("newDuty").addEventListener("click", newDuty);
-
-  function showZone() {
-    const label = zone === PHONE_TZ ? "Phone time" : "Times in";
-    document.getElementById("tz").textContent = label + " " + zone.replace(/_/g, " ") + ", " + fmtOffset(zoneOffset(new Date(), zone));
-  }
-  const tzSelect = document.getElementById("tzSelect");
-  let zones = [];
-  try { zones = Intl.supportedValuesOf("timeZone"); } catch (e) {}
-  if (!zones.includes("UTC")) zones.unshift("UTC");
-  if (!zones.includes(PHONE_TZ)) zones.unshift(PHONE_TZ);
-  const now0 = new Date();
-  for (const tz of zones) {
-    const opt = document.createElement("option");
-    opt.value = tz;
-    opt.textContent = tz.replace(/_/g, " ") + " (" + fmtOffset(zoneOffset(now0, tz)) + ")" + (tz === PHONE_TZ ? " · phone" : "");
-    tzSelect.appendChild(opt);
-  }
-  zone = loadZone();
-  tzSelect.value = zone;
-  if (tzSelect.value !== zone) { zone = PHONE_TZ; tzSelect.value = zone; }
-  showZone();
-  // Keep the typed sign-on date and time; read them in the new zone.
-  tzSelect.addEventListener("change", () => {
-    zone = tzSelect.value;
-    saveZone(zone);
-    showZone();
-    manualSoFar = false;
-    render();
-  });
 
   writeDur("limitH", "limitM", loadLimit());
   newDuty();
