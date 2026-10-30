@@ -110,6 +110,14 @@
   .landing span { display: block; font-size: 0.78rem; color: var(--muted); }
   .landing b { font-weight: 600; font-size: 1.05rem; }
   .landing .wide { grid-column: 1 / -1; }
+  .conv { overflow-x: auto; }
+  .conv table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .conv th { text-align: left; font-weight: 600; color: var(--muted); padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  .conv td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .conv td.num b { display: block; font-size: 1rem; }
+  .conv td.num small { display: block; color: var(--muted); font-family: var(--font-body); font-weight: 500; }
+  .conv td:first-child { color: var(--muted); white-space: normal; }
+  .conv td.num { font-weight: 600; white-space: nowrap; }
   .landing:not(.ok):not(.warn):not(.bad) { display: block; }
   optgroup { font-weight: 600; }
   footer { font-size: 0.8rem; color: var(--muted); text-align: center; }
@@ -149,6 +157,7 @@
       <label for="signOnTime">Sign-on time</label>
       <input type="time" id="signOnTime" step="60">
     </div>
+    <div class="conv" id="signOnConv"></div>
     <div class="row">
       <label for="sofarH">Time on duty so far</label>
       <div class="dur"><input id="sofarH" type="number" inputmode="numeric" min="0" max="48" aria-label="Hours so far"><span>h</span><input id="sofarM" type="number" inputmode="numeric" min="0" max="59" aria-label="Minutes so far"><span>m</span></div>
@@ -174,6 +183,7 @@
       <label for="landTime">Projected landing time</label>
       <input type="time" id="landTime" step="60">
     </div>
+    <div class="conv" id="signOffConv"></div>
     <div class="landing" id="landingOut">Enter a projected landing time to see your duty at landing.</div>
   </section>
 
@@ -376,8 +386,31 @@
     out.className = "landing " + (left < 0 ? "bad" : left <= WARN_MINUTES ? "warn" : "ok");
     out.innerHTML =
       '<div><span>Duty at landing</span><b class="num">' + fmt(atLanding) + '</b></div>' +
-      '<div><span>' + (left < 0 ? "Over limit at landing" : "Left at landing") + '</span><b class="num">' + fmt(left) + '</b></div>' +
-      '<div class="wide"><span>Landing in sign-on time</span><b class="num">' + fmtClock(land, zone) + '</b></div>';
+      '<div><span>' + (left < 0 ? "Over limit at landing" : "Left at landing") + '</span><b class="num">' + fmt(left) + '</b></div>';
+  }
+
+  // Name for a zone column: the city picked in the list, or the last part of the zone name.
+  function placeName(selectId) {
+    const sel = document.getElementById(selectId);
+    const opt = sel.options[sel.selectedIndex];
+    const name = opt ? opt.textContent.split(" — ")[0] : sel.value;
+    return name.split("/").pop();
+  }
+  function fmtShort(d, tz) {
+    if (!d || isNaN(d)) return "–";
+    const time = d.toLocaleTimeString([], { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false });
+    const day = d.toLocaleDateString("en-GB", { timeZone: tz, weekday: "short", day: "numeric", month: "short" });
+    return "<b>" + time + "</b><small>" + day + "</small>";
+  }
+  // Table of times shown in both the sign-on and the sign-off zone.
+  function renderConv(id, rows) {
+    const now = new Date();
+    const cols = [[placeName("tzSelect"), zone]];
+    if (arrZone !== zone) cols.push([placeName("arrSelect"), arrZone]);
+    const head = cols.map(([name, tz]) => "<th>" + name + " (" + (zoneAbbr(now, tz) || fmtOffset(zoneOffset(now, tz))) + ")</th>").join("");
+    const body = rows.map(([label, d]) =>
+      "<tr><td>" + label + "</td>" + cols.map(([, tz]) => '<td class="num">' + fmtShort(d, tz) + "</td>").join("") + "</tr>").join("");
+    document.getElementById(id).innerHTML = "<table><thead><tr><th></th>" + head + "</tr></thead><tbody>" + body + "</tbody></table>";
   }
 
   function render() {
@@ -409,6 +442,13 @@
     document.getElementById("useClock").hidden = !manualSoFar;
 
     renderLanding(signOn, limit);
+    renderConv("signOnConv", [["Sign-on", signOn]]);
+    const land = readDateTime("landDate", "landTime", arrZone);
+    renderConv("signOffConv", [
+      ...(land ? [["Landing", land]] : []),
+      ["Projected sign-off", r.projectedEnd],
+      ["Latest allowed sign-off", r.latestEnd],
+    ]);
     const now = new Date();
     document.getElementById("tz").textContent = zone === arrZone
       ? "Times in " + zoneTag(now, zone)
