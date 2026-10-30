@@ -87,6 +87,11 @@
     border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 44px; text-align: right; max-width: 100%;
   }
   input[type="date"], input[type="time"] { text-align: left; font-size: 1rem; min-width: 9.5em; }
+  select {
+    font: 500 1rem var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; min-height: 44px; max-width: 100%; min-width: 0; flex: 1 1 12em;
+  }
+  select:focus { outline: none; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
   input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   input:focus { outline: none; border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface); }
@@ -124,6 +129,10 @@
 
   <section>
     <h2>Sign-on</h2>
+    <div class="row">
+      <label for="tzSelect">Time zone</label>
+      <select id="tzSelect"></select>
+    </div>
     <div class="row">
       <label for="signOnDate">Sign-on date</label>
       <input type="date" id="signOnDate">
@@ -192,16 +201,45 @@
     const m = Math.abs(Math.round(mins));
     return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0");
   }
+  // Time zone helpers: sign-on is entered, and results shown, in the chosen zone.
+  const PHONE_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  let zone = PHONE_TZ;
+
+  function zoneParts(d, tz) {
+    const parts = {};
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    }).formatToParts(d).forEach((x) => { parts[x.type] = x.value; });
+    return parts;
+  }
+  // Minutes the zone is ahead of UTC at instant d.
+  function zoneOffset(d, tz) {
+    const p = zoneParts(d, tz);
+    const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute);
+    return Math.round((asUtc - Math.floor(d.getTime() / 60000) * 60000) / 60000);
+  }
+  // Wall-clock date and time in tz -> Date.
+  function zonedDate(dateStr, timeStr, tz) {
+    const [y, mo, da] = dateStr.split("-").map(Number);
+    const [h, mi] = timeStr.split(":").map(Number);
+    const guess = Date.UTC(y, mo - 1, da, h, mi);
+    let t = guess - zoneOffset(new Date(guess), tz) * 60000;
+    t = guess - zoneOffset(new Date(t), tz) * 60000;
+    return new Date(t);
+  }
+  function fmtOffset(mins) {
+    return "UTC" + (mins >= 0 ? "+" : "−") + fmt(mins);
+  }
   function fmtClock(d) {
     if (!d || isNaN(d)) return "–";
-    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-    const day = d.toLocaleDateString([], { day: "numeric", month: "short" });
+    const time = d.toLocaleTimeString([], { timeZone: zone, hour: "2-digit", minute: "2-digit", hour12: false });
+    const day = d.toLocaleDateString([], { timeZone: zone, day: "numeric", month: "short" });
     return time + " " + day;
   }
   function setSignOn(d) {
-    const p = (n) => String(n).padStart(2, "0");
-    document.getElementById("signOnDate").value = d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
-    document.getElementById("signOnTime").value = p(d.getHours()) + ":" + p(d.getMinutes());
+    const p = zoneParts(d, zone);
+    document.getElementById("signOnDate").value = p.year + "-" + p.month + "-" + p.day;
+    document.getElementById("signOnTime").value = String(+p.hour % 24).padStart(2, "0") + ":" + p.minute;
   }
   function readDur(hId, mId) {
     const h = parseInt(document.getElementById(hId).value, 10) || 0;
@@ -236,11 +274,21 @@
   function saveLimit(mins) {
     try { localStorage.setItem("dutyLimitMinutes", String(mins)); } catch (e) {}
   }
+  function loadZone() {
+    try {
+      const v = localStorage.getItem("dutyTimeZone");
+      if (v) { zoneOffset(new Date(), v); return v; }
+    } catch (e) {}
+    return PHONE_TZ;
+  }
+  function saveZone(tz) {
+    try { localStorage.setItem("dutyTimeZone", tz); } catch (e) {}
+  }
 
   function signOnDate() {
     const date = document.getElementById("signOnDate").value;
     const time = document.getElementById("signOnTime").value;
-    const d = date && time ? new Date(date + "T" + time) : null;
+    const d = date && time ? zonedDate(date, time, zone) : null;
     return d && !isNaN(d) ? d : null;
   }
 
@@ -310,10 +358,34 @@
   });
   document.getElementById("newDuty").addEventListener("click", newDuty);
 
-  const offset = -new Date().getTimezoneOffset();
-  const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-  document.getElementById("tz").textContent =
-    "Phone time " + (tzName ? tzName.replace(/_/g, " ") + ", " : "") + "UTC" + (offset >= 0 ? "+" : "−") + fmt(offset);
+  function showZone() {
+    const label = zone === PHONE_TZ ? "Phone time" : "Times in";
+    document.getElementById("tz").textContent = label + " " + zone.replace(/_/g, " ") + ", " + fmtOffset(zoneOffset(new Date(), zone));
+  }
+  const tzSelect = document.getElementById("tzSelect");
+  let zones = [];
+  try { zones = Intl.supportedValuesOf("timeZone"); } catch (e) {}
+  if (!zones.includes("UTC")) zones.unshift("UTC");
+  if (!zones.includes(PHONE_TZ)) zones.unshift(PHONE_TZ);
+  const now0 = new Date();
+  for (const tz of zones) {
+    const opt = document.createElement("option");
+    opt.value = tz;
+    opt.textContent = tz.replace(/_/g, " ") + " (" + fmtOffset(zoneOffset(now0, tz)) + ")" + (tz === PHONE_TZ ? " · phone" : "");
+    tzSelect.appendChild(opt);
+  }
+  zone = loadZone();
+  tzSelect.value = zone;
+  if (tzSelect.value !== zone) { zone = PHONE_TZ; tzSelect.value = zone; }
+  showZone();
+  // Keep the typed sign-on date and time; read them in the new zone.
+  tzSelect.addEventListener("change", () => {
+    zone = tzSelect.value;
+    saveZone(zone);
+    showZone();
+    manualSoFar = false;
+    render();
+  });
 
   writeDur("limitH", "limitM", loadLimit());
   newDuty();

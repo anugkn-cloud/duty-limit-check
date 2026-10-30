@@ -1,5 +1,5 @@
 // Bump CACHE when any file changes so phones pick up the new version.
-const CACHE = "duty-check-v2";
+const CACHE = "duty-check-v3";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (event) => {
