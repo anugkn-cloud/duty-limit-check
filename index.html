@@ -207,8 +207,20 @@
   </section>
 
   <section>
-    <h2>Landing and sign-off</h2>
-    <p class="hint">Enter the projected landing in local time at your destination.</p>
+    <h2>Flight</h2>
+    <p class="hint" id="flightHint"></p>
+    <div class="row">
+      <label for="depDate">Scheduled departure date</label>
+      <input type="date" id="depDate">
+    </div>
+    <div class="row">
+      <label for="depTime">Scheduled departure time</label>
+      <input type="time" id="depTime" step="60">
+    </div>
+    <div class="row">
+      <label for="flightH">Flight time</label>
+      <div class="dur"><input id="flightH" type="number" inputmode="numeric" min="0" max="48" placeholder="0" aria-label="Flight time hours"><span>h</span><input id="flightM" type="number" inputmode="numeric" min="0" max="59" placeholder="00" aria-label="Flight time minutes"><span>m</span></div>
+    </div>
     <div class="row">
       <label for="landDate">Projected landing date</label>
       <input type="date" id="landDate">
@@ -217,13 +229,17 @@
       <label for="landTime">Projected landing time</label>
       <input type="time" id="landTime" step="60">
     </div>
+    <div class="row">
+      <span class="clock-note" id="landNote"></span>
+      <button type="button" id="useCalcLanding" hidden>Use calculated</button>
+    </div>
     <div class="conv" id="signOffConv"></div>
     <div class="landing" id="landingOut">Enter a projected landing time to see your duty at landing.</div>
   </section>
 
   <section>
-    <h2>Still to come</h2>
-    <p class="hint">Only time that hasn't happened yet. Time already worked is in "Time on duty so far" above.</p>
+    <h2>Extra time</h2>
+    <p class="hint" id="extraHint"></p>
     <div id="fields"></div>
   </section>
 
@@ -247,7 +263,6 @@
   const WARN_MINUTES = 60;
   const CATEGORIES = [
     ["delay", "Delay"],
-    ["flight", "Flight time"],
     ["diversion", "Diversion"],
     ["medical", "Medical"],
     ["gasgo", "Gas-and-go"],
@@ -277,9 +292,20 @@
     ["NRT", "Tokyo Narita", "Asia/Tokyo"], ["HND", "Tokyo Haneda", "Asia/Tokyo"], ["KIX", "Osaka", "Asia/Tokyo"],
   ];
 
-  // Pure calculation: all values in minutes.
-  function calcDuty({ signOn, soFar, toCome, limit }) {
-    const total = soFar + toCome;
+  // Projected duty in minutes.
+  // With a scheduled departure, the day is a timeline: departure + delay + flight + diversion + gas-and-go
+  // gives the landing, then medical and other duty are added before sign-off.
+  // Without one, everything entered is time still to come on top of time on duty so far.
+  function projectDuty({ signOn, soFar, dep, flight, x, landOverride }) {
+    if (dep && signOn) {
+      const landing = landOverride || new Date(dep.getTime() + (x.delay + flight + x.diversion + x.gasgo) * 60000);
+      const signOff = new Date(landing.getTime() + (x.medical + x.other) * 60000);
+      return { total: Math.round((signOff.getTime() - signOn.getTime()) / 60000), landing };
+    }
+    return { total: soFar + flight + x.delay + x.diversion + x.medical + x.gasgo + x.other, landing: landOverride };
+  }
+
+  function calcDuty({ signOn, total, limit }) {
     const remaining = limit - total;
     return {
       total,
@@ -382,6 +408,7 @@
   }
 
   let manualSoFar = false;
+  let manualLanding = false;
 
   function load(key) {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -406,7 +433,7 @@
     const land = readDateTime("landDate", "landTime", arrZone);
     if (!land || !signOn) {
       out.className = "landing";
-      out.textContent = "Enter a projected landing time to see your duty at landing.";
+      out.textContent = "Enter the scheduled departure and flight time, or type a landing time, to see your duty at landing.";
       return;
     }
     const atLanding = Math.round((land.getTime() - signOn.getTime()) / 60000);
@@ -443,9 +470,29 @@
     syncClock();
     const signOn = readDateTime("signOnDate", "signOnTime", zone);
     const soFar = readDur("sofarH", "sofarM");
-    const toCome = CATEGORIES.reduce((sum, [key]) => sum + readDur(key + "H", key + "M"), 0);
+    const dep = readDateTime("depDate", "depTime", zone);
+    const flight = readDur("flightH", "flightM");
+    const x = {};
+    for (const [key] of CATEGORIES) x[key] = readDur(key + "H", key + "M");
+    const landOverride = manualLanding ? readDateTime("landDate", "landTime", arrZone) : null;
+    const proj = projectDuty({ signOn, soFar, dep, flight, x, landOverride });
+    const land = proj.landing;
+    if (!manualLanding) {
+      if (land) setDateTime("landDate", "landTime", land, arrZone);
+      else { document.getElementById("landDate").value = ""; document.getElementById("landTime").value = ""; }
+    }
     const limit = readDur("limitH", "limitM") || DEFAULT_LIMIT;
-    const r = calcDuty({ signOn, soFar, toCome, limit });
+    const r = calcDuty({ signOn, total: proj.total, limit });
+
+    document.getElementById("landNote").innerHTML = manualLanding
+      ? '<span class="manual">Entered by hand.</span>' + (dep ? " Not using departure and flight time." : "")
+      : dep ? "Departure + delay + flight time + diversion + gas-and-go." : "Enter the scheduled departure to work this out.";
+    document.getElementById("useCalcLanding").hidden = !(manualLanding && dep);
+    document.getElementById("flightHint").textContent =
+      "Departure in " + fromPlace.city + " time. Landing in " + toPlace.city + " time.";
+    document.getElementById("extraHint").textContent = dep
+      ? "Delay is the total delay against the scheduled departure. Medical and other duty are added after landing."
+      : "No departure entered, so these count as time still to come, on top of time on duty so far.";
 
     const status = document.getElementById("status");
     status.className = "status " + r.state;
@@ -469,8 +516,8 @@
 
     renderLanding(signOn, limit);
     renderConv("signOnConv", [["Sign-on", signOn]]);
-    const land = readDateTime("landDate", "landTime", arrZone);
     renderConv("signOffConv", [
+      ...(dep ? [["Departure", dep]] : []),
       ...(land ? [["Landing", land]] : []),
       ["Projected sign-off", r.projectedEnd],
       ["Latest allowed sign-off", r.latestEnd],
@@ -487,9 +534,9 @@
       document.getElementById(key + "H").value = "";
       document.getElementById(key + "M").value = "";
     }
-    document.getElementById("landDate").value = "";
-    document.getElementById("landTime").value = "";
+    for (const id of ["landDate", "landTime", "depDate", "depTime", "flightH", "flightM"]) document.getElementById(id).value = "";
     manualSoFar = false;
+    manualLanding = false;
     render();
   }
 
@@ -629,8 +676,12 @@
     document.getElementById(id).addEventListener("input", () => { manualSoFar = true; render(); });
   }
   for (const id of ["landDate", "landTime"]) {
+    document.getElementById(id).addEventListener("input", () => { manualLanding = true; render(); });
+  }
+  for (const id of ["depDate", "depTime", "flightH", "flightM"]) {
     document.getElementById(id).addEventListener("input", render);
   }
+  document.getElementById("useCalcLanding").addEventListener("click", () => { manualLanding = false; render(); });
   document.getElementById("useClock").addEventListener("click", () => { manualSoFar = false; render(); });
   fieldsEl.addEventListener("input", render);
   for (const id of ["limitH", "limitM"]) {
