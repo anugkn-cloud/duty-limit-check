@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d4fa8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Duty Check">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Duty Limit Check</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  /* Layout: one narrow column, status panel first, then sign-on, clock, still-to-come, limit */
+  :root {
+    --bg: #eef1f5;
+    --surface: #ffffff;
+    --ink: #142033;
+    --muted: #5a6880;
+    --line: #d5dce6;
+    --accent: #1d4fa8;
+    --ok: #18794e;
+    --ok-bg: #e4f4ec;
+    --warn: #9a5b00;
+    --warn-bg: #fdf1dc;
+    --bad: #b42318;
+    --bad-bg: #fde7e5;
+    --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+    --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c1220; --surface: #151d2e; --ink: #e6ecf5; --muted: #95a3bb; --line: #27324a;
+      --accent: #7aa6ff; --ok: #4fd18f; --ok-bg: #0f2a1f; --warn: #f2b453; --warn-bg: #2d220e;
+      --bad: #ff7b6e; --bad-bg: #331512; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c1220; --surface: #151d2e; --ink: #e6ecf5; --muted: #95a3bb; --line: #27324a;
+    --accent: #7aa6ff; --ok: #4fd18f; --ok-bg: #0f2a1f; --warn: #f2b453; --warn-bg: #2d220e;
+    --bad: #ff7b6e; --bad-bg: #331512; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.45;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 16px 40px;
+  }
+  main { max-width: 520px; margin: 0 auto; display: grid; gap: 16px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; letter-spacing: 0.01em; margin: 0; }
+  .tz { font-size: 0.8rem; color: var(--muted); }
+  .num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+  .status { border-radius: 14px; padding: 18px; display: grid; gap: 12px; border: 2px solid currentColor; }
+  .status.ok { color: var(--ok); background: var(--ok-bg); }
+  .status.warn { color: var(--warn); background: var(--warn-bg); }
+  .status.bad { color: var(--bad); background: var(--bad-bg); }
+  .status-label { font-family: var(--font-display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem; }
+  .status-big { font-family: var(--font-data); font-weight: 600; font-size: clamp(2.4rem, 12vw, 3.4rem); line-height: 1; }
+  .status-big small { font-family: var(--font-display); font-size: 1.1rem; font-weight: 600; margin-left: 6px; }
+  .bar { height: 10px; border-radius: 5px; background: color-mix(in srgb, currentColor 18%, transparent); position: relative; overflow: hidden; }
+  .bar-sofar, .bar-tocome { position: absolute; top: 0; bottom: 0; left: 0; }
+  .bar-sofar { background: currentColor; }
+  .bar-tocome { background: repeating-linear-gradient(-45deg, currentColor 0 4px, transparent 4px 8px); opacity: 0.55; }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; color: var(--ink); }
+  .fact span { display: block; font-size: 0.78rem; color: var(--muted); }
+  .fact b { font-family: var(--font-data); font-weight: 600; font-size: 1.05rem; }
+
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; }
+  h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; margin: 0; text-transform: uppercase; letter-spacing: 0.06em; }
+  .hint { margin: -6px 0 0; font-size: 0.85rem; color: var(--muted); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .row label { font-weight: 500; }
+  .dur { display: flex; align-items: center; gap: 4px; }
+  .dur input { width: 3.6em; }
+  .dur span { color: var(--muted); font-size: 0.85rem; }
+  input {
+    font: 600 1.1rem var(--font-data); font-variant-numeric: tabular-nums; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-height: 44px; text-align: right; max-width: 100%;
+  }
+  input[type="date"], input[type="time"] { text-align: left; font-size: 1rem; min-width: 9.5em; }
+  input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+  input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button {
+    font: 600 0.95rem var(--font-body); color: var(--accent); background: transparent; border: 1px solid var(--accent);
+    border-radius: 8px; padding: 8px 14px; min-height: 44px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: var(--surface); }
+  .clock-note { font-size: 0.85rem; color: var(--muted); }
+  .manual { color: var(--warn); font-weight: 600; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  footer { font-size: 0.8rem; color: var(--muted); text-align: center; }
+  @media (prefers-reduced-motion: no-preference) { .bar-sofar, .bar-tocome { transition: width 0.3s ease; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Duty Limit Check</h1>
+    <span class="tz" id="tz"></span>
+  </header>
+
+  <div class="status ok" id="status" aria-live="polite">
+    <div class="status-label" id="statusLabel">Within limit</div>
+    <div class="status-big" id="statusBig">0:00</div>
+    <div class="bar" aria-hidden="true"><div class="bar-tocome" id="barToCome"></div><div class="bar-sofar" id="barSoFar"></div></div>
+    <div class="facts">
+      <div class="fact"><span>Projected duty</span><b id="fTotal">0:00</b></div>
+      <div class="fact"><span>Duty limit</span><b id="fLimit">20:30</b></div>
+      <div class="fact"><span>Projected sign-off</span><b id="fEnd">–</b></div>
+      <div class="fact"><span>Latest allowed sign-off</span><b id="fLatest">–</b></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Sign-on</h2>
+    <div class="row">
+      <label for="signOnDate">Sign-on date</label>
+      <input type="date" id="signOnDate">
+    </div>
+    <div class="row">
+      <label for="signOnTime">Sign-on time</label>
+      <input type="time" id="signOnTime" step="60">
+    </div>
+    <div class="row">
+      <label for="sofarH">Time on duty so far</label>
+      <div class="dur"><input id="sofarH" type="number" inputmode="numeric" min="0" max="48" aria-label="Hours so far"><span>h</span><input id="sofarM" type="number" inputmode="numeric" min="0" max="59" aria-label="Minutes so far"><span>m</span></div>
+    </div>
+    <div class="row">
+      <span class="clock-note" id="clockNote">Counted from the phone's clock.</span>
+      <button type="button" id="useClock" hidden>Use clock</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Still to come</h2>
+    <p class="hint">Only time that hasn't happened yet. Time already worked is in "Time on duty so far" above.</p>
+    <div id="fields"></div>
+  </section>
+
+  <section>
+    <h2>Duty limit</h2>
+    <div class="row">
+      <label for="limitH">Limit</label>
+      <div class="dur"><input id="limitH" type="number" inputmode="numeric" min="0" max="48" aria-label="Limit hours"><span>h</span><input id="limitM" type="number" inputmode="numeric" min="0" max="59" aria-label="Limit minutes"><span>m</span></div>
+    </div>
+    <div class="actions">
+      <button type="button" id="resetLimit">Reset limit to 20h 30m</button>
+      <button type="button" class="primary" id="newDuty">Start new duty</button>
+    </div>
+  </section>
+
+  <footer>A planning aid only. The airline's rules and rostering system are the official record.</footer>
+</main>
+
+<script>
+  const DEFAULT_LIMIT = 20 * 60 + 30;
+  const WARN_MINUTES = 60;
+  const CATEGORIES = [
+    ["delay", "Delay"],
+    ["flight", "Flight time"],
+    ["diversion", "Diversion"],
+    ["medical", "Medical"],
+    ["gasgo", "Gas-and-go"],
+    ["other", "Other duty"],
+  ];
+
+  // Pure calculation: all values in minutes.
+  function calcDuty({ signOn, soFar, toCome, limit }) {
+    const total = soFar + toCome;
+    const remaining = limit - total;
+    return {
+      total,
+      remaining,
+      projectedEnd: signOn ? new Date(signOn.getTime() + total * 60000) : null,
+      latestEnd: signOn ? new Date(signOn.getTime() + limit * 60000) : null,
+      state: remaining < 0 ? "bad" : remaining <= WARN_MINUTES ? "warn" : "ok",
+    };
+  }
+
+  function fmt(mins) {
+    const m = Math.abs(Math.round(mins));
+    return Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0");
+  }
+  function fmtClock(d) {
+    if (!d || isNaN(d)) return "–";
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    const day = d.toLocaleDateString([], { day: "numeric", month: "short" });
+    return time + " " + day;
+  }
+  function setSignOn(d) {
+    const p = (n) => String(n).padStart(2, "0");
+    document.getElementById("signOnDate").value = d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+    document.getElementById("signOnTime").value = p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function readDur(hId, mId) {
+    const h = parseInt(document.getElementById(hId).value, 10) || 0;
+    const m = parseInt(document.getElementById(mId).value, 10) || 0;
+    return Math.max(0, h * 60 + m);
+  }
+  function writeDur(hId, mId, mins) {
+    document.getElementById(hId).value = Math.floor(mins / 60);
+    document.getElementById(mId).value = String(mins % 60).padStart(2, "0");
+  }
+
+  const fieldsEl = document.getElementById("fields");
+  for (const [key, label] of CATEGORIES) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML =
+      '<label for="' + key + 'H">' + label + '</label>' +
+      '<div class="dur"><input id="' + key + 'H" type="number" inputmode="numeric" min="0" max="48" placeholder="0" aria-label="' + label + ' hours"><span>h</span>' +
+      '<input id="' + key + 'M" type="number" inputmode="numeric" min="0" max="59" placeholder="00" aria-label="' + label + ' minutes"><span>m</span></div>';
+    fieldsEl.appendChild(row);
+  }
+
+  let manualSoFar = false;
+
+  function loadLimit() {
+    try {
+      const v = parseInt(localStorage.getItem("dutyLimitMinutes"), 10);
+      if (v > 0) return v;
+    } catch (e) {}
+    return DEFAULT_LIMIT;
+  }
+  function saveLimit(mins) {
+    try { localStorage.setItem("dutyLimitMinutes", String(mins)); } catch (e) {}
+  }
+
+  function signOnDate() {
+    const date = document.getElementById("signOnDate").value;
+    const time = document.getElementById("signOnTime").value;
+    const d = date && time ? new Date(date + "T" + time) : null;
+    return d && !isNaN(d) ? d : null;
+  }
+
+  function syncClock() {
+    if (manualSoFar) return;
+    const s = signOnDate();
+    const mins = s ? Math.max(0, Math.floor((Date.now() - s.getTime()) / 60000)) : 0;
+    writeDur("sofarH", "sofarM", mins);
+  }
+
+  function render() {
+    syncClock();
+    const signOn = signOnDate();
+    const soFar = readDur("sofarH", "sofarM");
+    const toCome = CATEGORIES.reduce((sum, [key]) => sum + readDur(key + "H", key + "M"), 0);
+    const limit = readDur("limitH", "limitM") || DEFAULT_LIMIT;
+    const r = calcDuty({ signOn, soFar, toCome, limit });
+
+    const status = document.getElementById("status");
+    status.className = "status " + r.state;
+    document.getElementById("statusLabel").textContent =
+      r.state === "bad" ? "Limit exceeded" : r.state === "warn" ? "Close to limit" : "Within limit";
+    document.getElementById("statusBig").innerHTML =
+      fmt(r.remaining) + "<small>" + (r.remaining < 0 ? "over" : "left") + "</small>";
+    document.getElementById("fTotal").textContent = fmt(r.total);
+    document.getElementById("fLimit").textContent = fmt(limit);
+    document.getElementById("fEnd").textContent = fmtClock(r.projectedEnd);
+    document.getElementById("fLatest").textContent = fmtClock(r.latestEnd);
+
+    const scale = Math.max(limit, r.total) || 1;
+    document.getElementById("barSoFar").style.width = Math.min(100, (soFar / scale) * 100) + "%";
+    document.getElementById("barToCome").style.width = Math.min(100, (r.total / scale) * 100) + "%";
+
+    document.getElementById("clockNote").innerHTML = manualSoFar
+      ? '<span class="manual">Entered by hand.</span> The clock is not updating it.'
+      : "Counted from sign-on to now, using the phone's clock.";
+    document.getElementById("useClock").hidden = !manualSoFar;
+  }
+
+  function newDuty() {
+    const now = new Date();
+    now.setSeconds(0, 0);
+    setSignOn(now);
+    for (const [key] of CATEGORIES) {
+      document.getElementById(key + "H").value = "";
+      document.getElementById(key + "M").value = "";
+    }
+    manualSoFar = false;
+    render();
+  }
+
+  for (const id of ["signOnDate", "signOnTime"]) {
+    document.getElementById(id).addEventListener("input", () => { manualSoFar = false; render(); });
+  }
+  for (const id of ["sofarH", "sofarM"]) {
+    document.getElementById(id).addEventListener("input", () => { manualSoFar = true; render(); });
+  }
+  document.getElementById("useClock").addEventListener("click", () => { manualSoFar = false; render(); });
+  fieldsEl.addEventListener("input", render);
+  for (const id of ["limitH", "limitM"]) {
+    document.getElementById(id).addEventListener("input", () => { saveLimit(readDur("limitH", "limitM")); render(); });
+  }
+  document.getElementById("resetLimit").addEventListener("click", () => {
+    writeDur("limitH", "limitM", DEFAULT_LIMIT);
+    saveLimit(DEFAULT_LIMIT);
+    render();
+  });
+  document.getElementById("newDuty").addEventListener("click", newDuty);
+
+  const offset = -new Date().getTimezoneOffset();
+  const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  document.getElementById("tz").textContent =
+    "Phone time " + (tzName ? tzName.replace(/_/g, " ") + ", " : "") + "UTC" + (offset >= 0 ? "+" : "−") + fmt(offset);
+
+  writeDur("limitH", "limitM", loadLimit());
+  newDuty();
+  setInterval(render, 30000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
+</script>
+</body>
+</html>
