@@ -289,6 +289,7 @@
       <button type="button" id="resetLimit">Reset limit to 20h 30m</button>
       <button type="button" class="primary" id="newDuty">Start new duty</button>
     </div>
+    <p class="clock-note">Everything you enter is kept on this phone until you start a new duty.</p>
   </section>
 
   <footer>A planning aid only. The airline's rules and rostering system are the official record.</footer>
@@ -574,9 +575,32 @@
     ], [fromPlace, signOffPlace]);
     const now = new Date();
     document.getElementById("tz").textContent = (fromPlace.code || fromPlace.city) + " → " + (toPlace.code || toPlace.city);
+    saveDuty();
+  }
+
+  // The duty in progress is kept on the phone so it survives closing the app.
+  const DUTY_FIELDS = ["signOnDate", "signOnTime", "sofarH", "sofarM", "depDate", "depTime", "flightH", "flightM",
+    "landDate", "landTime", "offDate", "offTime"].concat(CATEGORIES.flatMap(([key]) => [key + "H", key + "M"]));
+  function saveDuty() {
+    const values = {};
+    for (const id of DUTY_FIELDS) values[id] = document.getElementById(id).value;
+    save("dutyCurrent", JSON.stringify({ values, manualSoFar, manualLanding, on: signOnPlace.id, off: signOffPlace.id }));
+  }
+  function restoreDuty() {
+    let d;
+    try { d = JSON.parse(load("dutyCurrent") || "null"); } catch (e) { return false; }
+    if (!d || !d.values) return false;
+    for (const id of DUTY_FIELDS) if (typeof d.values[id] === "string") document.getElementById(id).value = d.values[id];
+    manualSoFar = !!d.manualSoFar;
+    manualLanding = !!d.manualLanding;
+    setSignZones(placeById(d.on) || fromPlace, placeById(d.off) || toPlace);
+    showPlaces();
+    render();
+    return true;
   }
 
   function newDuty() {
+    setSignZones(fromPlace, toPlace);
     const now = new Date();
     now.setSeconds(0, 0);
     setDateTime("signOnDate", "signOnTime", now, onZone);
@@ -587,6 +611,7 @@
     for (const id of ["landDate", "landTime", "depDate", "depTime", "flightH", "flightM", "offDate", "offTime"]) document.getElementById(id).value = "";
     manualSoFar = false;
     manualLanding = false;
+    showPlaces();
     render();
   }
 
@@ -769,10 +794,12 @@
     save("dutyLimitMinutes", String(DEFAULT_LIMIT));
     render();
   });
-  document.getElementById("newDuty").addEventListener("click", newDuty);
+  document.getElementById("newDuty").addEventListener("click", () => {
+    if (confirm("Start a new duty? This clears the times entered for the current one.")) newDuty();
+  });
 
   writeDur("limitH", "limitM", loadLimit());
-  newDuty();
+  if (!restoreDuty()) newDuty();
   setInterval(render, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
 
