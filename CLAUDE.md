@@ -14,4 +14,8 @@ Static, offline-capable web app (`index.html`, `sw.js`, `manifest.webmanifest`, 
 - The duty in progress is saved on the phone (localStorage, no database) so Martin can close the app and add delays later. "Start new duty" clears it after a confirm. Crew stay-or-leave decisions, which would need a database, are planned for V2.
 - Delays after sign-on and medical time count towards duty.
 - Time on duty so far is counted from sign-on using the phone's clock; "Still to come" fields hold only future time.
-- Sign-on and sign-off each have their own time zone. Sign-off times show in the destination zone. Time zone data comes from the phone's built-in `Intl` API.
+- Section order follows Martin's paper layout: Duty limit, Sign-on (sign-on and destination time zones), Flight, Extra time, Sign-off.
+- Extra time is a short list of reason + duration rows. Every reason pushes the landing back except "After landing", which only pushes sign-off.
+- Sign-off date and time fill in with the projected sign-off until Martin types the actual time. Its table shows "Projected" and "Total allowable" in both zones.
+- Sign-off has its own time zone, defaulting to the destination. Time zone data comes from the phone's built-in `Intl` API.
+- Annu chose a shared online database for storing duties (not built yet).

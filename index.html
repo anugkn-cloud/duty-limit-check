@@ -115,7 +115,11 @@
   .picker label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
   .picker input { text-align: left; font: 600 1.1rem var(--font-body); width: 100%; }
   .zone-tag { font-size: 0.85rem; color: var(--muted); }
-  section > .picker { margin-bottom: 12px; }
+  section > .picker { margin-bottom: 4px; }
+  .extra { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .extra select { min-width: 0; width: 100%; grid-column: 1 / -1; }
+  #extras { display: grid; gap: 10px; }
+  .extra .remove { width: 44px; padding: 0; font-size: 1.1rem; }
   .row[hidden] { display: none; }
   .swap {
     position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 44px; padding: 0;
@@ -163,28 +167,53 @@
       <div class="fact"><span id="fTotalLabel">Projected duty</span><b id="fTotal">0:00</b></div>
       <div class="fact"><span>Duty limit</span><b id="fLimit">20:30</b></div>
       <div class="fact"><span id="fEndLabel">Projected sign-off</span><b id="fEnd">–</b></div>
-      <div class="fact"><span>Latest allowed sign-off</span><b id="fLatest">–</b></div>
+      <div class="fact"><span>Total allowable sign-off</span><b id="fLatest">–</b></div>
     </div>
   </div>
 
   <section>
-    <h2>Route</h2>
-    <div class="route">
-      <div class="picker" id="fromPicker">
-        <label for="fromInput">From</label>
-        <input id="fromInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="City or airport code">
-        <span class="zone-tag" id="fromTag"></span>
-        <ul class="results" id="fromResults" role="listbox" hidden></ul>
-      </div>
-      <button type="button" class="swap" id="swapRoute" aria-label="Swap from and to">⇅</button>
-      <div class="picker" id="toPicker">
-        <label for="toInput">To</label>
-        <input id="toInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="City or airport code">
-        <span class="zone-tag" id="toTag"></span>
-        <ul class="results" id="toResults" role="listbox" hidden></ul>
-      </div>
+    <h2>Duty limit</h2>
+    <div class="row">
+      <label for="limitH">Limit</label>
+      <div class="dur"><input id="limitH" type="number" inputmode="numeric" min="0" max="48" aria-label="Limit hours"><span>h</span><input id="limitM" type="number" inputmode="numeric" min="0" max="59" aria-label="Limit minutes"><span>m</span></div>
+    </div>
+    <div class="actions">
+      <button type="button" id="resetLimit">Reset limit to 20h 30m</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Sign-on</h2>
+    <div class="picker" id="fromPicker">
+      <label for="fromInput">Sign-on time zone</label>
+      <input id="fromInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="City or airport code">
+      <span class="zone-tag" id="fromTag"></span>
+      <ul class="results" id="fromResults" role="listbox" hidden></ul>
+    </div>
+    <div class="row">
+      <label for="signOnDate">Sign-on date</label>
+      <input type="date" id="signOnDate">
+    </div>
+    <div class="row">
+      <label for="signOnTime">Sign-on time</label>
+      <input type="time" id="signOnTime" step="60">
+    </div>
+    <div class="picker" id="toPicker">
+      <label for="toInput">Destination time zone</label>
+      <input id="toInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="City or airport code">
+      <span class="zone-tag" id="toTag"></span>
+      <ul class="results" id="toResults" role="listbox" hidden></ul>
     </div>
     <div class="recent" id="recentRoutes"></div>
+    <div class="conv" id="signOnConv"></div>
+    <div class="row">
+      <label for="sofarH">Time on duty so far</label>
+      <div class="dur"><input id="sofarH" type="number" inputmode="numeric" min="0" max="48" aria-label="Hours so far"><span>h</span><input id="sofarM" type="number" inputmode="numeric" min="0" max="59" aria-label="Minutes so far"><span>m</span></div>
+    </div>
+    <div class="row">
+      <span class="clock-note" id="clockNote">Counted from the phone's clock.</span>
+      <button type="button" id="useClock" hidden>Use clock</button>
+    </div>
   </section>
 
   <section>
@@ -219,33 +248,11 @@
   </section>
 
   <section>
-    <h2>Sign-on</h2>
-    <div class="picker" id="onPicker">
-      <label for="onInput">Time zone</label>
-      <input id="onInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="City or airport code">
-      <span class="zone-tag" id="onTag"></span>
-      <ul class="results" id="onResults" role="listbox" hidden></ul>
-    </div>
-    <div class="row" id="onZoneRow" hidden>
-      <span class="clock-note"><span class="manual">Changed by hand.</span> Not from the route.</span>
-      <button type="button" id="onUseRoute">Use route</button>
-    </div>
-    <div class="row">
-      <label for="signOnDate">Sign-on date</label>
-      <input type="date" id="signOnDate">
-    </div>
-    <div class="row">
-      <label for="signOnTime">Sign-on time</label>
-      <input type="time" id="signOnTime" step="60">
-    </div>
-    <div class="conv" id="signOnConv"></div>
-    <div class="row">
-      <label for="sofarH">Time on duty so far</label>
-      <div class="dur"><input id="sofarH" type="number" inputmode="numeric" min="0" max="48" aria-label="Hours so far"><span>h</span><input id="sofarM" type="number" inputmode="numeric" min="0" max="59" aria-label="Minutes so far"><span>m</span></div>
-    </div>
-    <div class="row">
-      <span class="clock-note" id="clockNote">Counted from the phone's clock.</span>
-      <button type="button" id="useClock" hidden>Use clock</button>
+    <h2>Extra time</h2>
+    <p class="hint" id="extraHint"></p>
+    <div id="extras"></div>
+    <div class="actions">
+      <button type="button" id="addExtra">+ Add time</button>
     </div>
   </section>
 
@@ -253,40 +260,32 @@
     <h2>Sign-off</h2>
     <p class="hint" id="signOffHint"></p>
     <div class="picker" id="offPicker">
-      <label for="offInput">Time zone</label>
+      <label for="offInput">Sign-off time zone</label>
       <input id="offInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="City or airport code">
       <span class="zone-tag" id="offTag"></span>
       <ul class="results" id="offResults" role="listbox" hidden></ul>
     </div>
     <div class="row" id="offZoneRow" hidden>
-      <span class="clock-note"><span class="manual">Changed by hand.</span> Not from the route.</span>
-      <button type="button" id="offUseRoute">Use route</button>
+      <span class="clock-note"><span class="manual">Changed by hand.</span> Not the destination.</span>
+      <button type="button" id="offUseRoute">Use destination</button>
     </div>
     <div class="row">
-      <label for="offDate">Actual sign-off date</label>
+      <label for="offDate">Sign-off date</label>
       <input type="date" id="offDate">
     </div>
     <div class="row">
-      <label for="offTime">Actual sign-off time</label>
+      <label for="offTime">Sign-off time</label>
       <input type="time" id="offTime" step="60">
+    </div>
+    <div class="row">
+      <span class="clock-note" id="offNote"></span>
+      <button type="button" id="useProjected" hidden>Use projected</button>
     </div>
     <div class="conv" id="signOffConv"></div>
   </section>
 
   <section>
-    <h2>Extra time</h2>
-    <p class="hint" id="extraHint"></p>
-    <div id="fields"></div>
-  </section>
-
-  <section>
-    <h2>Duty limit</h2>
-    <div class="row">
-      <label for="limitH">Limit</label>
-      <div class="dur"><input id="limitH" type="number" inputmode="numeric" min="0" max="48" aria-label="Limit hours"><span>h</span><input id="limitM" type="number" inputmode="numeric" min="0" max="59" aria-label="Limit minutes"><span>m</span></div>
-    </div>
     <div class="actions">
-      <button type="button" id="resetLimit">Reset limit to 20h 30m</button>
       <button type="button" class="primary" id="newDuty">Start new duty</button>
     </div>
     <p class="clock-note">Everything you enter is kept on this phone until you start a new duty.</p>
@@ -298,13 +297,17 @@
 <script>
   const DEFAULT_LIMIT = 20 * 60 + 30;
   const WARN_MINUTES = 60;
-  const CATEGORIES = [
-    ["delay", "Delay"],
-    ["diversion", "Diversion"],
+  // Reasons for extra time. Most push the landing back; "after" ones only push the sign-off.
+  const REASONS = [
+    ["delay", "Delay before take-off"],
+    ["diversion", "Diversion (extra flying)"],
     ["medical", "Medical"],
-    ["gasgo", "Gas-and-go"],
-    ["other", "Other duty"],
+    ["refuel", "Refuel / gas-and-go"],
+    ["holding", "Holding / weather"],
+    ["afterLanding", "After landing", true],
+    ["other", "Other"],
   ];
+  const isAfterLanding = (reason) => !!(REASONS.find((r) => r[0] === reason) || [])[2];
   // Airports crew are likely to use: [code, city, time zone]. Any other zone can still be found by name.
   const AIRPORTS = [
     ["MEL", "Melbourne", "Australia/Melbourne"], ["SYD", "Sydney", "Australia/Sydney"], ["BNE", "Brisbane", "Australia/Brisbane"],
@@ -330,16 +333,16 @@
   ];
 
   // Projected duty in minutes.
-  // With a scheduled departure, the day is a timeline: departure + delay + flight + diversion + gas-and-go
-  // gives the landing, then medical and other duty are added before sign-off.
+  // With a scheduled departure, the day is a timeline: departure + flight time + extra time before landing
+  // gives the landing, then extra time after landing is added before sign-off.
   // Without one, everything entered is time still to come on top of time on duty so far.
-  function projectDuty({ signOn, soFar, dep, flight, x, landOverride }) {
+  function projectDuty({ signOn, soFar, dep, flight, before, after, landOverride }) {
     if (dep && signOn) {
-      const landing = landOverride || new Date(dep.getTime() + (x.delay + flight + x.diversion + x.gasgo) * 60000);
-      const signOff = new Date(landing.getTime() + (x.medical + x.other) * 60000);
+      const landing = landOverride || new Date(dep.getTime() + (flight + before) * 60000);
+      const signOff = new Date(landing.getTime() + after * 60000);
       return { total: Math.round((signOff.getTime() - signOn.getTime()) / 60000), landing };
     }
-    return { total: soFar + flight + x.delay + x.diversion + x.medical + x.gasgo + x.other, landing: landOverride };
+    return { total: soFar + flight + before + after, landing: landOverride };
   }
 
   function calcDuty({ signOn, total, limit }) {
@@ -436,19 +439,42 @@
     document.getElementById(mId).value = String(mins % 60).padStart(2, "0");
   }
 
-  const fieldsEl = document.getElementById("fields");
-  for (const [key, label] of CATEGORIES) {
+  // Extra time is a short list: each row is a reason and a duration.
+  const extrasEl = document.getElementById("extras");
+  function addExtra(reason = "delay", mins = 0) {
     const row = document.createElement("div");
-    row.className = "row";
+    row.className = "extra";
     row.innerHTML =
-      '<label for="' + key + 'H">' + label + '</label>' +
-      '<div class="dur"><input id="' + key + 'H" type="number" inputmode="numeric" min="0" max="48" placeholder="0" aria-label="' + label + ' hours"><span>h</span>' +
-      '<input id="' + key + 'M" type="number" inputmode="numeric" min="0" max="59" placeholder="00" aria-label="' + label + ' minutes"><span>m</span></div>';
-    fieldsEl.appendChild(row);
+      '<select aria-label="Reason">' + REASONS.map(([key, label]) => '<option value="' + key + '">' + label + "</option>").join("") + "</select>" +
+      '<div class="dur"><input type="number" inputmode="numeric" min="0" max="48" placeholder="0" aria-label="Hours"><span>h</span>' +
+      '<input type="number" inputmode="numeric" min="0" max="59" placeholder="00" aria-label="Minutes"><span>m</span></div>' +
+      '<button type="button" class="remove" aria-label="Remove">×</button>';
+    row.querySelector("select").value = reason;
+    const [h, m] = row.querySelectorAll("input");
+    if (mins) { h.value = Math.floor(mins / 60); m.value = String(mins % 60).padStart(2, "0"); }
+    row.querySelector(".remove").addEventListener("click", () => {
+      row.remove();
+      if (!extrasEl.children.length) addExtra();
+      render();
+    });
+    extrasEl.appendChild(row);
+  }
+  function readExtras() {
+    return [...extrasEl.children].map((row) => {
+      const [h, m] = row.querySelectorAll("input");
+      const mins = Math.max(0, (parseInt(h.value, 10) || 0) * 60 + (parseInt(m.value, 10) || 0));
+      return { reason: row.querySelector("select").value, mins };
+    });
+  }
+  function setExtras(list) {
+    extrasEl.innerHTML = "";
+    for (const e of list) addExtra(e.reason, e.mins);
+    if (!extrasEl.children.length) addExtra();
   }
 
   let manualSoFar = false;
   let manualLanding = false;
+  let manualOff = false;
 
   function load(key) {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -513,35 +539,43 @@
     const soFar = readDur("sofarH", "sofarM");
     const dep = readDateTime("depDate", "depTime", zone);
     const flight = readDur("flightH", "flightM");
-    const x = {};
-    for (const [key] of CATEGORIES) x[key] = readDur(key + "H", key + "M");
+    let before = 0, after = 0;
+    for (const e of readExtras()) { if (isAfterLanding(e.reason)) after += e.mins; else before += e.mins; }
     const landOverride = manualLanding ? readDateTime("landDate", "landTime", arrZone) : null;
-    const proj = projectDuty({ signOn, soFar, dep, flight, x, landOverride });
+    const proj = projectDuty({ signOn, soFar, dep, flight, before, after, landOverride });
     const land = proj.landing;
     if (!manualLanding) {
       if (land) setDateTime("landDate", "landTime", land, arrZone);
       else { document.getElementById("landDate").value = ""; document.getElementById("landTime").value = ""; }
     }
     const limit = readDur("limitH", "limitM") || DEFAULT_LIMIT;
-    // A recorded sign-off replaces the projection.
-    const actualOff = readDateTime("offDate", "offTime", offZone);
+    // Sign-off fills itself with the projection until the actual time is typed in.
+    const actualOff = manualOff ? readDateTime("offDate", "offTime", offZone) : null;
     const total = actualOff && signOn ? Math.round((actualOff.getTime() - signOn.getTime()) / 60000) : proj.total;
     const r = calcDuty({ signOn, total, limit });
+    if (!manualOff) {
+      if (r.projectedEnd) setDateTime("offDate", "offTime", r.projectedEnd, offZone);
+      else { document.getElementById("offDate").value = ""; document.getElementById("offTime").value = ""; }
+    }
     document.getElementById("fTotalLabel").textContent = actualOff ? "Actual duty" : "Projected duty";
     document.getElementById("fEndLabel").textContent = actualOff ? "Signed off" : "Projected sign-off";
     document.getElementById("signOffHint").textContent = actualOff
-      ? "Recorded. The duty above is now the actual duty from sign-on to sign-off."
-      : "Record this when the crew actually sign off, in " + signOffPlace.city + " time.";
+      ? "Actual sign-off recorded. The duty above is now the actual duty."
+      : "Filled in with the projected sign-off. Change it to the actual time when the crew sign off.";
+    document.getElementById("offNote").innerHTML = manualOff
+      ? '<span class="manual">Actual time.</span> Not the projection.'
+      : "Projected, in " + signOffPlace.city + " time.";
+    document.getElementById("useProjected").hidden = !manualOff;
 
     document.getElementById("landNote").innerHTML = manualLanding
       ? '<span class="manual">Entered by hand.</span>' + (dep ? " Not using departure and flight time." : "")
-      : dep ? "Departure + delay + flight time + diversion + gas-and-go." : "Enter the scheduled departure to work this out.";
+      : dep ? "Departure + flight time + extra time before landing." : "Enter the scheduled departure to work this out.";
     document.getElementById("useCalcLanding").hidden = !(manualLanding && dep);
     document.getElementById("flightHint").textContent =
       "Departure in " + fromPlace.city + " time. Landing in " + toPlace.city + " time.";
     document.getElementById("extraHint").textContent = dep
-      ? "Delay is the total delay against the scheduled departure. Medical and other duty are added after landing."
-      : "No departure entered, so these count as time still to come, on top of time on duty so far.";
+      ? "Pick a reason and add the time. Everything except \"After landing\" pushes the landing back."
+      : "No departure entered, so this counts as time still to come, on top of time on duty so far.";
 
     const status = document.getElementById("status");
     status.className = "status " + r.state;
@@ -564,14 +598,14 @@
     document.getElementById("useClock").hidden = !manualSoFar;
 
     renderLanding(signOn, limit);
-    renderConv("signOnConv", [["Sign-on", signOn]], [signOnPlace, toPlace]);
+    renderConv("signOnConv", [["Sign-on", signOn]]);
     renderConv("flightConv", [
       ...(dep ? [["Departure", dep]] : []),
       ...(land ? [["Landing", land]] : []),
     ]);
     renderConv("signOffConv", [
-      ...(actualOff ? [["Signed off", actualOff]] : [["Projected sign-off", r.projectedEnd]]),
-      ["Latest allowed sign-off", r.latestEnd],
+      ...(actualOff ? [["Signed off", actualOff]] : [["Projected", r.projectedEnd]]),
+      ["Total allowable", r.latestEnd],
     ], [fromPlace, signOffPlace]);
     const now = new Date();
     document.getElementById("tz").textContent = (fromPlace.code || fromPlace.city) + " → " + (toPlace.code || toPlace.city);
@@ -580,11 +614,11 @@
 
   // The duty in progress is kept on the phone so it survives closing the app.
   const DUTY_FIELDS = ["signOnDate", "signOnTime", "sofarH", "sofarM", "depDate", "depTime", "flightH", "flightM",
-    "landDate", "landTime", "offDate", "offTime"].concat(CATEGORIES.flatMap(([key]) => [key + "H", key + "M"]));
+    "landDate", "landTime", "offDate", "offTime"];
   function saveDuty() {
     const values = {};
     for (const id of DUTY_FIELDS) values[id] = document.getElementById(id).value;
-    save("dutyCurrent", JSON.stringify({ values, manualSoFar, manualLanding, on: signOnPlace.id, off: signOffPlace.id }));
+    save("dutyCurrent", JSON.stringify({ values, manualSoFar, manualLanding, manualOff, extras: readExtras(), off: signOffPlace.id }));
   }
   function restoreDuty() {
     let d;
@@ -593,7 +627,9 @@
     for (const id of DUTY_FIELDS) if (typeof d.values[id] === "string") document.getElementById(id).value = d.values[id];
     manualSoFar = !!d.manualSoFar;
     manualLanding = !!d.manualLanding;
-    setSignZones(placeById(d.on) || fromPlace, placeById(d.off) || toPlace);
+    manualOff = !!d.manualOff;
+    setExtras(Array.isArray(d.extras) ? d.extras : []);
+    setSignZones(fromPlace, placeById(d.off) || toPlace);
     showPlaces();
     render();
     return true;
@@ -604,13 +640,11 @@
     const now = new Date();
     now.setSeconds(0, 0);
     setDateTime("signOnDate", "signOnTime", now, onZone);
-    for (const [key] of CATEGORIES) {
-      document.getElementById(key + "H").value = "";
-      document.getElementById(key + "M").value = "";
-    }
+    setExtras([]);
     for (const id of ["landDate", "landTime", "depDate", "depTime", "flightH", "flightM", "offDate", "offTime"]) document.getElementById(id).value = "";
     manualSoFar = false;
     manualLanding = false;
+    manualOff = false;
     showPlaces();
     render();
   }
@@ -701,14 +735,12 @@
   }
   function showPlaces() {
     const now = new Date();
-    const show = [["from", fromPlace], ["to", toPlace], ["on", signOnPlace], ["off", signOffPlace]];
+    const show = [["from", fromPlace], ["to", toPlace], ["off", signOffPlace]];
     for (const [w, p] of show) {
       document.getElementById(w + "Input").value = placeLabel(p);
       document.getElementById(w + "Tag").textContent = zoneTag(now, p.tz);
     }
-    if (signOnPlace === fromPlace) document.getElementById("onTag").textContent += " · from route (From)";
-    if (signOffPlace === toPlace) document.getElementById("offTag").textContent += " · from route (To)";
-    document.getElementById("onZoneRow").hidden = signOnPlace === fromPlace;
+    if (signOffPlace === toPlace) document.getElementById("offTag").textContent += " · destination";
     document.getElementById("offZoneRow").hidden = signOffPlace === toPlace;
   }
 
@@ -723,8 +755,7 @@
       if (which === "from") setRoute(p, toPlace);
       else if (which === "to") setRoute(fromPlace, p);
       else {
-        if (which === "on") setSignZones(p, signOffPlace); else setSignZones(signOnPlace, p);
-        manualSoFar = false;
+        setSignZones(signOnPlace, p);
         showPlaces();
         render();
       }
@@ -756,11 +787,8 @@
   }
   setupPicker("from");
   setupPicker("to");
-  setupPicker("on");
   setupPicker("off");
-  document.getElementById("onUseRoute").addEventListener("click", () => { setSignZones(fromPlace, signOffPlace); manualSoFar = false; showPlaces(); render(); });
   document.getElementById("offUseRoute").addEventListener("click", () => { setSignZones(signOnPlace, toPlace); showPlaces(); render(); });
-  document.getElementById("swapRoute").addEventListener("click", () => setRoute(toPlace, fromPlace));
 
   // Restore the last route; older versions saved bare time zones.
   fromPlace = placeById(load("dutyFrom") || "") || placeById(load("dutyTimeZone") || "") || phonePlace();
@@ -780,12 +808,18 @@
   for (const id of ["landDate", "landTime"]) {
     document.getElementById(id).addEventListener("input", () => { manualLanding = true; render(); });
   }
-  for (const id of ["depDate", "depTime", "flightH", "flightM", "offDate", "offTime"]) {
+  for (const id of ["depDate", "depTime", "flightH", "flightM"]) {
     document.getElementById(id).addEventListener("input", render);
   }
+  for (const id of ["offDate", "offTime"]) {
+    document.getElementById(id).addEventListener("input", () => { manualOff = true; render(); });
+  }
+  document.getElementById("useProjected").addEventListener("click", () => { manualOff = false; render(); });
   document.getElementById("useCalcLanding").addEventListener("click", () => { manualLanding = false; render(); });
   document.getElementById("useClock").addEventListener("click", () => { manualSoFar = false; render(); });
-  fieldsEl.addEventListener("input", render);
+  extrasEl.addEventListener("input", render);
+  extrasEl.addEventListener("change", render);
+  document.getElementById("addExtra").addEventListener("click", () => { addExtra("other"); render(); });
   for (const id of ["limitH", "limitM"]) {
     document.getElementById(id).addEventListener("input", () => { save("dutyLimitMinutes", String(readDur("limitH", "limitM"))); render(); });
   }
@@ -799,6 +833,7 @@
   });
 
   writeDur("limitH", "limitM", loadLimit());
+  setExtras([]);
   if (!restoreDuty()) newDuty();
   setInterval(render, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
